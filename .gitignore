@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+data/raw/
+data/keypoints/
+data/samples/
+*.mp4
+*.avi
+*.mov
+*.npz
+weights/*.pt
+node_modules/
+web/dist/
+.DS_Store
