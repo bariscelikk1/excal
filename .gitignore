@@ -8,7 +8,7 @@ data/samples/
 *.avi
 *.mov
 *.npz
-weights/*.pt
+weights/*.task
 node_modules/
 web/dist/
 .DS_Store
