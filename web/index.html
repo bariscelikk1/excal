@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>excal — workout video analyzer</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-jumping_jack: #2a78d6; --c-pull_up: #008300; --c-push_up: #e87ba4;
+    --c-situp: #eda100; --c-squat: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-jumping_jack: #3987e5; --c-pull_up: #008300; --c-push_up: #d55181;
+      --c-situp: #c98500; --c-squat: #199e70;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page); color: var(--ink);
+    max-width: 860px; margin: 0 auto; padding: 32px 20px 64px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--ink-2); margin-bottom: 24px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 16px;
+  }
+  form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+  label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
+  input {
+    font: inherit; color: var(--ink); background: var(--page);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+  }
+  input[type=number] { width: 110px; }
+  button {
+    font: inherit; font-weight: 600; padding: 9px 18px; border: 0;
+    border-radius: 6px; background: var(--c-jumping_jack); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { color: var(--ink-2); margin: 8px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+  .tile .v { font-size: 32px; font-weight: 700; }
+  .tile .l { font-size: 13px; color: var(--ink-2); }
+  h2 { font-size: 15px; margin-bottom: 12px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .row .name { width: 110px; font-size: 13px; color: var(--ink-2); text-align: right; }
+  .row .bar-wrap { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .row .bar { height: 14px; border-radius: 0 4px 4px 0; min-width: 2px; }
+  .row .val { font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tl { position: relative; height: 34px; background: var(--page);
+        border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .tl .seg { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; }
+  .tl-axis { display: flex; justify-content: space-between; font-size: 12px;
+             color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600;
+       border-bottom: 1px solid var(--baseline); padding: 6px 8px; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid);
+       font-variant-numeric: tabular-nums; }
+  td:first-child { font-variant-numeric: normal; }
+  .tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink);
+         border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+         font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.15); display: none; z-index: 10; }
+  #results { display: none; }
+</style>
+</head>
+<body>
+<h1>excal</h1>
+<p class="sub">Upload a workout video — get exercises, reps, and calories burned.</p>
+
+<div class="card">
+  <form id="form">
+    <div><label>Video file</label><input type="file" id="file" accept="video/*" required></div>
+    <div><label>Your weight (kg)</label><input type="number" id="weight" value="70" min="30" max="250" step="0.5"></div>
+    <div><label>Analyze first N seconds (blank = all)</label><input type="number" id="maxsec" min="10" step="10" placeholder="all"></div>
+    <button id="go" type="submit">Analyze</button>
+  </form>
+  <p id="status"></p>
+</div>
+
+<div id="results">
+  <div class="tiles" style="margin-bottom:16px">
+    <div class="card tile"><div class="v" id="t-cal"></div><div class="l">kcal burned</div></div>
+    <div class="card tile"><div class="v" id="t-reps"></div><div class="l">total reps</div></div>
+    <div class="card tile"><div class="v" id="t-dur"></div><div class="l">active time</div></div>
+  </div>
+  <div class="card"><h2>Calories by exercise</h2><div id="bars"></div></div>
+  <div class="card"><h2>Workout timeline</h2><div class="tl" id="tl"></div>
+    <div class="tl-axis"><span>0:00</span><span id="tl-end"></span></div>
+    <div class="legend" id="legend"></div></div>
+  <div class="card"><h2>Segments</h2>
+    <table><thead><tr><th>Exercise</th><th>Start</th><th>End</th><th>Reps</th><th>kcal</th></tr></thead>
+    <tbody id="segs"></tbody></table></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const NICE = { jumping_jack: "Jumping jacks", pull_up: "Pull-ups", push_up: "Push-ups",
+               situp: "Sit-ups", squat: "Squats" };
+const color = ex => getComputedStyle(document.documentElement).getPropertyValue(`--c-${ex}`).trim();
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const $ = id => document.getElementById(id);
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", $("file").files[0]);
+  fd.append("weight_kg", $("weight").value);
+  if ($("maxsec").value) fd.append("max_seconds", $("maxsec").value);
+  $("go").disabled = true;
+  $("results").style.display = "none";
+  $("status").textContent = "Uploading…";
+  try {
+    const { job_id } = await (await fetch("/api/analyze", { method: "POST", body: fd })).json();
+    $("status").textContent = "Analyzing (pose estimation + classification)… this takes roughly the video's duration.";
+    const t0 = Date.now();
+    while (true) {
+      await new Promise(r => setTimeout(r, 2000));
+      const job = await (await fetch(`/api/jobs/${job_id}`)).json();
+      if (job.status === "done") { render(job.result); $("status").textContent = ""; break; }
+      if (job.status === "error") { $("status").textContent = "Failed: " + job.error; break; }
+      $("status").textContent = `Analyzing… ${Math.round((Date.now() - t0) / 1000)}s elapsed`;
+    }
+  } catch (err) { $("status").textContent = "Request failed: " + err; }
+  $("go").disabled = false;
+});
+
+function render(r) {
+  $("results").style.display = "block";
+  $("t-cal").textContent = r.totals.calories.toFixed(1);
+  $("t-reps").textContent = r.totals.reps;
+  const active = r.segments.reduce((a, s) => a + s.duration_s, 0);
+  $("t-dur").textContent = mmss(active);
+
+  const per = Object.entries(r.per_exercise).sort((a, b) => b[1].calories - a[1].calories);
+  const maxCal = Math.max(...per.map(([, v]) => v.calories), 0.01);
+  $("bars").innerHTML = per.map(([ex, v]) => `
+    <div class="row"><div class="name">${NICE[ex] || ex}</div>
+      <div class="bar-wrap">
+        <div class="bar" style="width:${(v.calories / maxCal) * 72}%;background:${color(ex)}"></div>
+        <div class="val">${v.calories.toFixed(1)} kcal · ${v.reps} reps</div>
+      </div></div>`).join("");
+
+  const end = Math.max(...r.segments.map(s => s.end_s), 1);
+  $("tl-end").textContent = mmss(end);
+  $("tl").innerHTML = r.segments.map((s, i) => `
+    <div class="seg" data-i="${i}" style="left:${(s.start_s / end) * 100}%;
+      width:calc(${((s.end_s - s.start_s) / end) * 100}% - 2px);background:${color(s.exercise)}"></div>`).join("");
+  $("tl").querySelectorAll(".seg").forEach(el => {
+    el.addEventListener("mousemove", ev => {
+      const s = r.segments[+el.dataset.i], tip = $("tip");
+      tip.style.display = "block";
+      tip.style.left = (ev.clientX + 12) + "px";
+      tip.style.top = (ev.clientY + 12) + "px";
+      tip.textContent = `${NICE[s.exercise]} · ${mmss(s.start_s)}–${mmss(s.end_s)} · ${s.reps} reps · ${s.calories} kcal`;
+    });
+    el.addEventListener("mouseleave", () => $("tip").style.display = "none");
+  });
+  $("legend").innerHTML = per.map(([ex]) =>
+    `<span><span class="sw" style="background:${color(ex)}"></span>${NICE[ex] || ex}</span>`).join("");
+
+  $("segs").innerHTML = r.segments.map(s => `
+    <tr><td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;
+      background:${color(s.exercise)};margin-right:6px"></span>${NICE[s.exercise] || s.exercise}</td>
+      <td>${mmss(s.start_s)}</td><td>${mmss(s.end_s)}</td><td>${s.reps}</td><td>${s.calories}</td></tr>`).join("");
+}
+</script>
+</body>
+</html>
