@@ -19,7 +19,8 @@ from excal.calories.met import calories
 from excal.features.build import FEATURE_NAMES, frame_features
 from excal.model.net import ExerciseNet
 from excal.pose.extract import extract_keypoints
-from excal.repcount.counter import count_reps
+from excal.repcount.counter import REP_CONFIG, count_reps
+from excal.viz.annotate import render_annotated
 
 WEIGHTS = Path(__file__).resolve().parents[1] / "weights" / "exercise_net.pt"
 WINDOW, STRIDE = 45, 15
@@ -78,21 +79,32 @@ def segments_from_labels(labels: list, fps: float) -> list[tuple[str, int, int]]
     return [s for s in segs if (s[2] - s[1]) / fps >= MIN_SEGMENT_S]
 
 
-def analyze(video_path: str | Path, weight_kg: float, max_seconds: float | None = None) -> dict:
+def analyze(
+    video_path: str | Path,
+    weight_kg: float,
+    max_seconds: float | None = None,
+    overlay_path: str | Path | None = None,
+) -> dict:
     data = extract_keypoints(video_path, sample_fps=15.0, max_seconds=max_seconds)
     fps = float(data["fps"])
     if not len(data["timestamps"]):
-        return {"video": str(video_path), "segments": [], "totals": {"calories": 0.0}}
+        return {"video": str(video_path), "segments": [], "totals": {"reps": 0, "calories": 0.0}}
 
     feats = frame_features(data["landmarks"], fps)
     model, ckpt = load_model()
     labels = smooth(classify_windows(feats, model, ckpt))
 
-    segments, total_cal, total_reps = [], 0.0, 0
+    segments, seg_infos, total_cal, total_reps = [], [], 0.0, 0
     per_exercise: dict[str, dict] = {}
     for lab, s, e in segments_from_labels(labels, fps):
         dur = (e - s) / fps
-        reps = count_reps(feats[s:e], lab, fps)["reps"] if lab != "plank" else 0
+        counted = (
+            count_reps(feats[s:e], lab, fps)
+            if lab in REP_CONFIG
+            else {"reps": 0, "rep_frames": []}
+        )
+        reps = counted["reps"]
+        seg_infos.append({"label": lab, "start": s, "end": e, "rep_frames": counted["rep_frames"]})
         cal = calories(lab, weight_kg, dur)
         segments.append(
             {
@@ -111,6 +123,13 @@ def analyze(video_path: str | Path, weight_kg: float, max_seconds: float | None 
         agg["duration_s"] = round(agg["duration_s"] + dur, 1)
         agg["calories"] = round(agg["calories"] + cal, 2)
 
+    if overlay_path is not None:
+        render_annotated(
+            video_path, overlay_path,
+            data["landmarks"], data["frame_indices"], fps,
+            seg_infos, weight_kg,
+        )
+
     return {
         "video": str(video_path),
         "weight_kg": weight_kg,
@@ -125,8 +144,12 @@ def main() -> None:
     ap.add_argument("video")
     ap.add_argument("--weight-kg", type=float, default=70.0)
     ap.add_argument("--max-seconds", type=float, default=None)
+    ap.add_argument(
+        "--overlay", metavar="OUT_MP4", default=None,
+        help="also write an annotated video (skeleton + reps/kcal HUD) here",
+    )
     args = ap.parse_args()
-    print(json.dumps(analyze(args.video, args.weight_kg, args.max_seconds), indent=2))
+    print(json.dumps(analyze(args.video, args.weight_kg, args.max_seconds, args.overlay), indent=2))
 
 
 if __name__ == "__main__":

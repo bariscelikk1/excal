@@ -18,7 +18,8 @@ _IDX = {name: i for i, name in enumerate(FEATURE_NAMES)}
 #              min distance between reps in seconds, invert)
 # invert=False counts valleys (angle dips), True counts peaks (signal rises).
 REP_CONFIG = {
-    "pushup": (["l_elbow", "r_elbow"], 30.0, 0.8, False),
+    "push_up": (["l_elbow", "r_elbow"], 30.0, 0.8, False),
+    "pull_up": (["l_elbow", "r_elbow"], 30.0, 0.8, False),
     "squat": (["l_knee", "r_knee"], 30.0, 0.8, False),
     "situp": (["l_hip", "r_hip"], 25.0, 0.8, False),
     "jumping_jack": (["arm_spread"], 0.8, 0.4, True),

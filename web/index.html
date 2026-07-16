@@ -91,6 +91,13 @@
 </div>
 
 <div id="results">
+  <div class="card" id="vid-card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="margin-bottom:0">Tracked video</h2>
+      <a id="vid-dl" download="excal_tracked.mp4"><button type="button">Download</button></a>
+    </div>
+    <video id="vid" controls playsinline style="width:100%;border-radius:6px;background:#000"></video>
+  </div>
   <div class="tiles" style="margin-bottom:16px">
     <div class="card tile"><div class="v" id="t-cal"></div><div class="l">kcal burned</div></div>
     <div class="card tile"><div class="v" id="t-reps"></div><div class="l">total reps</div></div>
@@ -129,7 +136,11 @@ $("form").addEventListener("submit", async e => {
     while (true) {
       await new Promise(r => setTimeout(r, 2000));
       const job = await (await fetch(`/api/jobs/${job_id}`)).json();
-      if (job.status === "done") { render(job.result); $("status").textContent = ""; break; }
+      if (job.status === "done") {
+        render(job.result, job.has_video ? `/api/jobs/${job_id}/video` : null);
+        $("status").textContent = "";
+        break;
+      }
       if (job.status === "error") { $("status").textContent = "Failed: " + job.error; break; }
       $("status").textContent = `Analyzing… ${Math.round((Date.now() - t0) / 1000)}s elapsed`;
     }
@@ -137,8 +148,10 @@ $("form").addEventListener("submit", async e => {
   $("go").disabled = false;
 });
 
-function render(r) {
+function render(r, videoUrl) {
   $("results").style.display = "block";
+  $("vid-card").style.display = videoUrl ? "block" : "none";
+  if (videoUrl) { $("vid").src = videoUrl; $("vid-dl").href = videoUrl; }
   $("t-cal").textContent = r.totals.calories.toFixed(1);
   $("t-reps").textContent = r.totals.reps;
   const active = r.segments.reduce((a, s) => a + s.duration_s, 0);
